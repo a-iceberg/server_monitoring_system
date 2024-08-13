@@ -1,0 +1,15 @@
+version: '3.8'
+
+services:
+  health_checker:
+    container_name: health_checker
+    restart: unless-stopped
+    build:
+      context: .
+      dockerfile: Dockerfile
+    environment:
+      - REMOTE_URL=${REMOTE_URL:-https://example.com}
+      - CHECK_INTERVAL=${CHECK_INTERVAL:-1}
+      - RETRY_INTERVAL=${RETRY_INTERVAL:-900}
+      - TELEGRAM_TOKEN=${TELEGRAM_TOKEN}
+      - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID}
