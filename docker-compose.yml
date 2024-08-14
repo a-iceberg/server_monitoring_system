@@ -8,17 +8,16 @@ services:
       context: .
       dockerfile: Dockerfile
     ports:
-      - "${PORT:-9876}:9876"
+      - "9876:9876"
     environment:
       - TZ=Europe/Moscow
-      - REMOTE_URL=${REMOTE_URL:-REMOTE_URL}
+      - REMOTE_URL=${REMOTE_URL:-REMOTE_URL:9876}
       - CHECK_INTERVAL=${CHECK_INTERVAL:-1}
       - RETRY_INTERVAL=${RETRY_INTERVAL:-900}
       - TELEGRAM_TOKEN=${TELEGRAM_TOKEN:-TELEGRAM_TOKEN}
       - TELEGRAM_CHAT_ID=${TELEGRAM_CHAT_ID:-TELEGRAM_CHAT_ID}
-      - PORT=${PORT:-9876}
       - SSL_TOKEN=${SSL_TOKEN:-SSL_TOKEN}
     volumes:
       - /etc/letsencrypt/live/YOUR_DOMAIN/fullchain.pem:/app/ssl_cert.pem
       - /etc/letsencrypt/live/YOUR_DOMAIN/privkey.pem:/app/ssl_pkey.pem
-    command: ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "health_check:app", "--bind", "0.0.0.0:${PORT:-9876}", "--timeout", "1800", "--keyfile=./ssl_pkey.pem", "--certfile=./ssl_cert.pem"]
+    command: ["gunicorn", "-k", "uvicorn.workers.UvicornWorker", "health_check:app", "--bind", "0.0.0.0:9876", "--timeout", "1800", "--keyfile=./ssl_pkey.pem", "--certfile=./ssl_cert.pem"]

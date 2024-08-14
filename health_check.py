@@ -1,9 +1,10 @@
 import os
-import time
 import logging
-import requests
+import asyncio
+import aiohttp
+import datetime
 
-from telebot import TeleBot
+from telebot import async_telebot
 from fastapi.security import APIKeyHeader
 from fastapi import FastAPI, HTTPException, Depends
 
@@ -14,6 +15,7 @@ class Application:
         self.app = FastAPI()
         self.load_config()
         self.setup_routes()
+        self.session = None
 
     def setup_logging(self):
         logging.basicConfig(level=logging.INFO)
@@ -23,7 +25,7 @@ class Application:
 
     def load_config(self):
         self.remote_url = os.getenv('REMOTE_URL')
-        self.check_interval = int(os.getenv('CHECK_INTERVAL', '1'))
+        self.check_interval = float(os.getenv('CHECK_INTERVAL', '1'))
         self.retry_interval = int(os.getenv('RETRY_INTERVAL', '900'))
         self.ssl_token = os.getenv('SSL_TOKEN')
         self.telegram_token = os.getenv('TELEGRAM_TOKEN')
@@ -42,37 +44,64 @@ class Application:
         @self.app.get('/health')
         async def health_check(ssl_token: str = Depends(verify_token)):
             return {"status": "OK"}
+        
+        @self.app.on_event("startup")
+        async def startup_event():
+            self.session = aiohttp.ClientSession()
+            self.bot = async_telebot.AsyncTeleBot(token=self.telegram_token)
+            asyncio.create_task(self.main())
 
-    def check_health(self):
+        @self.app.on_event("shutdown")
+        async def shutdown_event():
+            await self.session.close()
+            await self.bot.session.close()
+
+    async def check_health(self):
+        current_time = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         try:
-            response = requests.get(f"{self.remote_url}/health", timeout=None, headers={"X-Token": self.ssl_token}, verify=True)
-            response.raise_for_status()
-            self.logger.info(f"Health check successful for {self.remote_url}")
-            return True
-        except requests.RequestException as e:
-            self.logger.error(f"Health check failed for {self.remote_url}: {str(e)}")
+            async with self.session.get(
+                f"{self.remote_url}/health",
+                timeout=None,
+                headers={"X-Token": self.ssl_token},
+                ssl=True
+            ) as response:
+                response.raise_for_status()
+                self.logger.info(
+                    f"[{current_time}] Health check successful for {self.remote_url}"
+                )
+                return True
+        except Exception as e:
+            self.logger.error(
+                f"[{current_time}] Health check failed for {self.remote_url}: {e}"
+            )
             return False
 
-    def send_telegram_message(self, message: str):
+    async def send_telegram_message(self, message: str):
         try:
-            self.bot.send_message(chat_id=self.telegram_chat_id, text=message)
+            await self.bot.send_message(
+            chat_id=self.telegram_chat_id,
+            text=message
+            )
             self.logger.info(f"Telegram message sent: {message}")
         except Exception as e:
-            self.logger.error(f"Failed to send Telegram message: {str(e)}")
+            self.logger.error(f"Failed to send Telegram message: {e}")
 
-    def main(self):
+    async def main(self):
         self.logger.info("Starting health check script")
-        self.bot = TeleBot(token=self.telegram_token)
 
         while True:
-            if not self.check_health():
+            if not await self.check_health():
                 message = f"Error: {self.remote_url} is not responding"
-                self.send_telegram_message(message)
-                self.logger.warning(f"Waiting for {self.retry_interval} seconds before next check")
-                time.sleep(self.retry_interval)
+                await self.send_telegram_message(message)
+                self.logger.warning(
+                f"Waiting for {self.retry_interval} seconds before next check"
+                )
+                await asyncio.sleep(self.retry_interval)
             else:
-                self.logger.debug(f"Waiting for {self.check_interval} seconds before next check")
-                time.sleep(self.check_interval)
+                self.logger.info(
+                    f"Waiting for {self.check_interval:.2f} seconds before next check"
+                )
+                await asyncio.sleep(self.check_interval)
 
 
 application = Application()
