@@ -61,20 +61,18 @@ class Application:
         try:
             async with self.session.get(
                 f"{self.remote_url}/health",
-                timeout=None,
+                timeout=60,
                 headers={"X-Token": self.ssl_token},
                 ssl=True
             ) as response:
                 response.raise_for_status()
                 self.logger.info(
-                    f"[{current_time}] Health check successful for {self.remote_url}"
+                    f"[{current_time}] Health check successful for {self.remote_url[:-5]}"
                 )
-                return True
+                return True, None
         except Exception as e:
-            self.logger.error(
-                f"[{current_time}] Health check failed for {self.remote_url}: {e}"
-            )
-            return False
+            self.logger.error(f"[{current_time}] Health check failed for {self.remote_url[:-5]}: {e}")
+            return False, e
 
     async def send_telegram_message(self, message: str):
         try:
@@ -90,16 +88,18 @@ class Application:
         self.logger.info("Starting health check script")
 
         while True:
-            if not await self.check_health():
-                message = f"Error: {self.remote_url} is not responding"
+            is_healthy, error_message = await self.check_health()
+            if not is_healthy:
+                message = f"{self.remote_url[:-5]} is not responding.\nError: {error_message}"
                 await self.send_telegram_message(message)
                 self.logger.warning(
                 f"Waiting for {self.retry_interval} seconds before next check"
                 )
                 await asyncio.sleep(self.retry_interval)
+
             else:
                 self.logger.info(
-                    f"Waiting for {self.check_interval:.2f} seconds before next check"
+                    f"Waiting for {self.check_interval:.1f} seconds before next check"
                 )
                 await asyncio.sleep(self.check_interval)
 
