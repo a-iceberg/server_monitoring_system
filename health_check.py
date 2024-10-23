@@ -25,7 +25,7 @@ class Application:
 
     def load_config(self):
         self.remote_url = os.getenv('REMOTE_URL')
-        self.check_interval = float(os.getenv('CHECK_INTERVAL', '1'))
+        self.check_interval = float(os.getenv('CHECK_INTERVAL', '60'))
         self.retry_interval = int(os.getenv('RETRY_INTERVAL', '900'))
         self.ssl_token = os.getenv('SSL_TOKEN')
         self.telegram_token = os.getenv('TELEGRAM_TOKEN')
