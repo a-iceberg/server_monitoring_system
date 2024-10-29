@@ -61,18 +61,26 @@ class Application:
         try:
             async with self.session.get(
                 f"{self.remote_url}/health",
-                timeout=60,
+                timeout=120,
                 headers={"X-Token": self.ssl_token},
                 ssl=True
             ) as response:
                 response.raise_for_status()
-                self.logger.info(
-                    f"[{current_time}] Health check successful for {self.remote_url[:-5]}"
-                )
-                return True, None
+                result = await response.json()
+                if result.get('status') == 'OK':
+                    self.logger.info(
+                        f"[{current_time}] Health check successful for {self.remote_url[:-5]}"
+                    )
+                    return True, None
+                else:
+                    error_message = f"Unexpected response content: {result}"
+                    self.logger.error(
+                        f"[{current_time}] Health check failed for {self.remote_url[:-5]}: {error_message}"
+                    )
+                    return False, error_message
         except Exception as e:
             self.logger.error(f"[{current_time}] Health check failed for {self.remote_url[:-5]}: {e}")
-            return False, e
+            return False, str(e) if e else "Unknown error"
 
     async def send_telegram_message(self, message: str):
         try:
