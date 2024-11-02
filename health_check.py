@@ -66,7 +66,13 @@ class Application:
                 ssl=True
             ) as response:
                 response.raise_for_status()
-                result = await response.json()
+                response_text = await response.text()
+                self.logger.info(f"Response text: {response_text}")
+                try:
+                    result = await response.json()
+                except Exception as json_exc:
+                    self.logger.error(f"Failed to parse JSON: {json_exc}")
+                    return False, f"Failed to parse JSON: {json_exc}"
                 if result.get('status') == 'OK':
                     self.logger.info(
                         f"[{current_time}] Health check successful for {self.remote_url[:-5]}"
@@ -79,8 +85,9 @@ class Application:
                     )
                     return False, error_message
         except Exception as e:
-            self.logger.error(f"[{current_time}] Health check failed for {self.remote_url[:-5]}: {e}")
-            return False, str(e) if e else "Unknown error"
+            exc_type = type(e).__name__
+            self.logger.error(f"[{current_time}] Health check failed for {self.remote_url[:-5]}: {exc_type}: {e}")
+            return False, f"{exc_type}: {e}" if str(e) else f"{exc_type}: No message"
 
     async def send_telegram_message(self, message: str):
         try:
